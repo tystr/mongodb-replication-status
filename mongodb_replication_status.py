@@ -11,6 +11,8 @@ from daemon import runner
 import logging
 from pymongo import Connection
 from time import sleep
+import smtplib
+from email.mime.text import MIMEText
 
 class MongoDBReplicationStatus(object):
     poll_interval = 5
@@ -62,10 +64,23 @@ class MongoDBReplicationStatus(object):
             for member in members:
                 lag = self.get_primary_optime(members) - member['optime'].time
                 if lag > self.lag_threshold:
-                    # @todo send alert
+                    notifier = Notify()
+                    message = 'Member "%s" is %s seconds behind the primary' % (member['name'], lag)
+                    notifier.notify_alert(message)
                     self.logger.warning('WARNING: Member "%s" is %s seconds behind the primary' % (member['name'], lag))
                 self.logger.debug('DEBUG: Member "%s" is %s seconds behind the primary' % (member['name'], lag))
             sleep(self.poll_interval)
+
+class Notify(object):
+    smtp_host = 'localhost'
+    from_email = 'from_email'
+    recipient_emails = ['recipient1', 'recipient2']
+
+    def notify_alert(self, message, subject='[ALERT] Replication Status Warning'):
+        message = MIMEText(message)
+        message['Subject'] = subject
+        mailer = smtplib.SMTP(self.smtp_host)
+        return mailer.sendmail(self.from_email, self.recipient_emails, str(message))
 
 if __name__ == '__main__':
     status = MongoDBReplicationStatus(['host1:27017', 'host2:27017', 'host3:27017'])
