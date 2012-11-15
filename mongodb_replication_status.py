@@ -10,6 +10,7 @@ This script monitors replication status of a replicaset
 from daemon import runner
 import logging
 from pymongo import Connection
+from pymongo.errors import AutoReconnect
 from time import sleep
 import smtplib
 from email.mime.text import MIMEText
@@ -19,6 +20,7 @@ class MongoDBReplicationStatus(object):
     lag_threshold = 30 # lag threshold in seconds
     log_level = logging.INFO
     last_primary = None
+    max_connect_retries = 5 # number of times to attempt connecting to a hostname
 
     def __init__(self, hostnames):
         self.stdin_path = '/dev/null'
@@ -43,7 +45,10 @@ class MongoDBReplicationStatus(object):
                 return connection['admin'].command('replSetGetStatus')['members']
 
         for hostname in [h for h in self.hostnames if h != self.last_primary]:
-            connection = Connection(hostname)
+            connection = self.get_connection(hostname)
+            if not isinstance(connection, Connection):
+                continue # failed to connect to the current iteration's hostname, so continue and try the next hostname
+
             if connection.is_primary:
                 self.last_primary = hostname
                 return connection['admin'].command('replSetGetStatus')['members']
@@ -57,6 +62,24 @@ class MongoDBReplicationStatus(object):
         for member in members:
             if 'PRIMARY' == member['stateStr']:
                 return member['optime'].time
+
+    def get_connection(self, hostname):
+        """ Attempt to create a mongodb Connection to the given hostname """
+        retries = self.max_connect_retries
+        while retries > 0:
+            try:
+                return Connection(hostname)
+            except AutoReconnect:
+                self.logger.warning(
+                    'WARNING: Failed to connect to hostname "%s". Trying again in 5 seconds. (%s tries left).'
+                    % (hostname, retries))
+                retries -= 1
+                sleep(1)
+
+        errmsg = 'ERROR: All %s attempts to connect to hostname "%s" failed. Host may be down.'\
+                 % (self.max_connect_retries, hostname)
+        self.logger.error(errmsg)
+        Notify().notify_alert(errmsg, '[ALERT] Host %s may be down' % hostname)
 
     def run(self):
         while True:
