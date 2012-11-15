@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# replicaset_status.py
+# mongodb_replicaset_status.py
 # Author: Tyler Stroud <ststroud@gmail.com>
 # Date: 2012-11-06
 
