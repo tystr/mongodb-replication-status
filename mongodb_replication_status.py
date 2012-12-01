@@ -40,8 +40,8 @@ class MongoDBReplicationStatus(object):
     def get_members(self):
         """ Connect to the primary member and refresh the replica set status """
         if self.last_primary is not None:
-            connection = Connection(self.last_primary)
-            if connection.is_primary:
+            connection = self.get_connection(self.last_primary)
+            if connection is not None and connection.is_primary:
                 return connection['admin'].command('replSetGetStatus')['members']
 
         for hostname in [h for h in self.hostnames if h != self.last_primary]:
