@@ -84,14 +84,16 @@ class MongoDBReplicationStatus(object):
     def run(self):
         while True:
             members = self.get_members()
+            message = None
             for member in members:
                 lag = self.get_primary_optime(members) - member['optime'].time
                 if lag > self.lag_threshold:
-                    notifier = Notify()
-                    message = 'Member "%s" is %s seconds behind the primary' % (member['name'], lag)
-                    notifier.notify_alert(message)
+                    message += 'Member "%s" is %s seconds behind the primary\n' % (member['name'], lag)
                     self.logger.warning('WARNING: %s' % message)
                 self.logger.debug('DEBUG: Member "%s" is %s seconds behind the primary' % (member['name'], lag))
+            if message is not None:
+                notifier = Notify()
+                notifier.notify_alert(message)
             sleep(self.poll_interval)
 
 class Notify(object):
