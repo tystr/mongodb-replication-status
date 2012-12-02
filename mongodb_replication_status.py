@@ -44,8 +44,8 @@ class MongoDBReplicationStatus(object):
         self.logger.addHandler(self.logger_handler)
 
     def set_notifier(self, notifier):
-        assert isinstance(notifier, Notify), ('"notifier" must be an instance'
-                                             'of "Notify"')
+        assert isinstance(notifier, Notifier), ('"notifier" must be an instance'
+                                             'of "Notifier"')
         self.notifier = notifier
 
     def get_members(self):
@@ -90,7 +90,7 @@ class MongoDBReplicationStatus(object):
         errmsg = 'ERROR: All %s attempts to connect to hostname "%s" failed. Host may be down.'\
                  % (self.max_connect_retries, hostname)
         self.logger.error(errmsg)
-        self.notifier.notify_alert(errmsg, '[ALERT] Host %s may be down' % hostname)
+        self.notifier.send_to_all(errmsg, '[ALERT] Host %s may be down' % hostname)
 
     def run(self):
         while True:
@@ -103,16 +103,16 @@ class MongoDBReplicationStatus(object):
                     self.logger.warning(message)
                 self.logger.debug('DEBUG: Member "%s" is %s seconds behind the primary' % (member['name'], lag))
             if message is not None:
-                self.notifier.notify_alert(message)
+                self.notifier.send_to_all(message)
             sleep(self.poll_interval)
 
-class Notify(object):
+class Notifier(object):
     def __init__(self, from_email, recipient_emails, smtp_host='localhost'):
         self.from_email = from_email
         self.recipient_emails = recipient_emails
         self.smtp_host = smtp_host
 
-    def notify_alert(self, message, subject='[ALERT] Replication Status Warning'):
+    def send_to_all(self, message, subject='[ALERT] Replication Status Warning'):
         message = MIMEText(message)
         message['Subject'] = subject
         mailer = smtplib.SMTP(self.smtp_host)
@@ -140,7 +140,7 @@ if __name__ == '__main__':
         config_parser.get('main', 'pidfile'),
         config_parser.get('main', 'logfile'),
     )
-    notifier = Notify(config_parser.get('main', 'from_email'),
+    notifier = Notifier(config_parser.get('main', 'from_email'),
                       config_parser.get('main', 'recipients'),
                       config_parser.get('main', 'smtp_host'))
     status.set_notifier(notifier)
