@@ -102,7 +102,7 @@ class MongoDBReplicationStatus(object):
                     message += 'WARNING: Member "%s" is %s seconds behind the primary\n' % (member['name'], lag)
                     self.logger.warning(message)
                 self.logger.debug('DEBUG: Member "%s" is %s seconds behind the primary' % (member['name'], lag))
-            if message is not None:
+            if message is not '':
                 self.notifier.send_to_all(message)
             sleep(self.poll_interval)
 
